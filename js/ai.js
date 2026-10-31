@@ -43,6 +43,61 @@
     }
   }
 
+  async function errorFor(res) {
+    const s = cfg();
+    let detail = '';
+    try { const j = await res.json(); detail = (j.error && (j.error.message || j.error.type)) || JSON.stringify(j).slice(0, 200); } catch (e) { try { detail = (await res.text()).slice(0, 200); } catch (e2) {} }
+    if (res.status === 401) return new AIError('密钥不对或者已经失效。到 DeepSeek 开放平台重新复制一个，填到设置里。', 'auth');
+    if (res.status === 402) return new AIError('DeepSeek 账户余额不足，充值后就能继续用。', 'balance');
+    if (res.status === 429) return new AIError('请求太频繁了，等几秒再试。', 'rate');
+    if (res.status === 404) return new AIError('找不到这个接口或模型（' + s.model + '）。检查一下设置里的接口地址和模型名称。', 'notfound');
+    if (res.status >= 500) return new AIError('DeepSeek 服务暂时不可用，稍后再试。', 'server');
+    return new AIError('AI 返回了错误（' + res.status + '）：' + detail, res.status === 400 ? 'bad' : 'other');
+  }
+
+  /** 流式对话：回复一段一段地到达，onDelta(全文) 会被反复调用。 */
+  async function stream(messages, onDelta, opts) {
+    opts = opts || {};
+    const s = cfg();
+    if (!ready()) throw new AIError('还没有填写 DeepSeek 密钥。在「我的 → AI 设置」里填好就能用。', 'nokey');
+    const url = s.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const body = { model: s.model, messages, temperature: opts.temperature == null ? 0.7 : opts.temperature, max_tokens: opts.maxTokens || 2000, stream: true };
+      if (attempt === 0 && s.thinkingOff) body.thinking = { type: 'disabled' };
+      let res;
+      try { res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.apiKey }, body: JSON.stringify(body), signal: opts.signal }); }
+      catch (e) {
+        if (e && e.name === 'AbortError') throw new AIError('已停止', 'abort');
+        throw new AIError('连不上 AI 服务。可能是网络问题，也可能是浏览器不允许网页直接连接 DeepSeek。可以在「我的 → AI 设置」里点「测试连接」看看。', 'network');
+      }
+      if (!res.ok) { if (res.status === 400 && attempt === 0 && s.thinkingOff) continue; throw await errorFor(res); }
+      // 不支持流式时（比如某些中转），直接读完整结果
+      const ct = res.headers.get('content-type') || '';
+      if (!res.body || ct.includes('application/json')) {
+        const j = await res.json(); const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+        onDelta(text); return text;
+      }
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      let buf = '', text = '';
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (data === '[DONE]') { onDelta(text); return text; }
+            try { const j = JSON.parse(data); const d = j.choices && j.choices[0] && j.choices[0].delta; if (d && d.content) { text += d.content; onDelta(text); } } catch (e) {}
+          }
+        }
+      } catch (e) { if (e && e.name === 'AbortError') { onDelta(text); return text; } throw new AIError('回复中断了，再试一次。', 'network'); }
+      onDelta(text); return text;
+    }
+  }
+
   function parseJSON(text) {
     if (!text) throw new AIError('AI 没有返回内容，再试一次。', 'parse');
     let t = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
@@ -134,5 +189,5 @@
     return true;
   }
 
-  window.AI = { ready, recognizePhoto, parseText, planDay, test, AIError };
+  window.AI = { ready, recognizePhoto, parseText, planDay, test, stream, shrink, AIError };
 })();

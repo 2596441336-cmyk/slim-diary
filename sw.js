@@ -1,6 +1,6 @@
 /* 离线缓存：只缓存本站文件，网页优先走网络（更新马上生效），断网时用缓存。AI 请求不经过这里。 */
-const VERSION = 'slim-v1';
-const SHELL = ['./', 'index.html', 'css/style.css', 'js/core.js', 'js/foods.js', 'js/recipes.js', 'js/ai.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
+const VERSION = 'slim-v2';
+const SHELL = ['./', 'index.html', 'css/style.css', 'js/core.js', 'js/foods.js', 'js/recipes.js', 'js/ui.js', 'js/photos.js', 'js/ics.js', 'js/ai.js', 'js/assistant.js', 'js/calendar.js', 'js/me.js', 'js/app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);

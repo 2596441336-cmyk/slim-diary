@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>瘦身日记</title>
-<meta name="description" content="记体重、看趋势、算热量、拍照记饮食，每天换样的减脂食谱。">
+<meta name="description" content="记体重、看趋势、算热量、拍照记饮食，还有一个了解你情况的私人 AI 助手。">
 <meta name="theme-color" content="#eef1ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1311" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -44,15 +44,24 @@
     <div id="weightBody"></div>
   </section>
 
+  <!-- 助手 -->
+  <section class="view chat-view" data-view="chat" hidden>
+    <header class="page-head chat-head"><h1 id="chatName">助手</h1><button type="button" class="pill-btn ghost" id="chatNew">新对话</button></header>
+    <div id="chatBody" class="chat-body"></div>
+  </section>
+
   <!-- 食谱 -->
   <section class="view" data-view="plan" hidden>
-    <header class="page-head"><h1>今天吃什么</h1></header>
-    <div id="planBody"></div>
+    <header class="page-head"><h1>食谱</h1></header>
+    <div class="card cal-card" id="calBody"></div>
+    <div class="card day-detail" id="calDay"></div>
+    <h2 class="section-title">今日食谱推荐</h2>
+    <div id="recBody"></div>
   </section>
 
   <!-- 我的 -->
   <section class="view" data-view="me" hidden>
-    <header class="page-head"><h1>我的</h1></header>
+    <header class="page-head me-head" id="meHead"><h1>我的</h1></header>
     <div id="meBody"></div>
   </section>
 </div>
@@ -63,10 +72,21 @@
   <button type="button" class="q-side" id="qSearch" aria-label="搜索食物"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><span>搜索</span></button>
 </div>
 
+<div class="chat-bar" id="chatBar" hidden>
+  <div class="chat-attach" id="chatAttach" hidden></div>
+  <div class="chat-row">
+    <button type="button" class="chat-ico" id="chatPhotoBtn" aria-label="发照片"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M4 17l5-5 4 4 2.5-2.5L20 17"/></svg></button>
+    <textarea id="chatInput" rows="1" placeholder="问我任何问题…" aria-label="输入问题"></textarea>
+    <button type="button" class="chat-send" id="chatSend" aria-label="发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></svg></button>
+  </div>
+  <input type="file" id="chatPhoto" accept="image/*" hidden>
+</div>
+
 <nav class="tabbar" aria-label="切换页面">
   <button type="button" data-tab="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 9V6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5V9M4 9v9.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V9"/><path d="M8 3v4M16 3v4M8 13h4M8 16.5h7"/></svg>今天</button>
   <button type="button" data-tab="weight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 18.5l5-6 4 3.5 8-10"/><path d="M15.5 6h5v5"/></svg>体重</button>
-  <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h16a8 8 0 0 1-16 0z"/><path d="M8 9c0-2 1-3 2-3M12 9c0-2.5 1-4 2.5-4M16 9c0-1.5.6-2.5 1.5-2.5"/></svg>食谱</button>
+  <button type="button" data-tab="chat" class="tab-chat"><span class="chat-dot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg></span><span id="tabChatLabel">助手</span></button>
+  <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M7.5 14h2M11 14h2M14.5 14h2M7.5 17.2h2M11 17.2h2"/></svg>食谱</button>
   <button type="button" data-tab="me"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/></svg>我的</button>
 </nav>
 
@@ -82,7 +102,13 @@
 <script src="js/core.js"></script>
 <script src="js/foods.js"></script>
 <script src="js/recipes.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/photos.js"></script>
+<script src="js/ics.js"></script>
 <script src="js/ai.js"></script>
+<script src="js/assistant.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/me.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

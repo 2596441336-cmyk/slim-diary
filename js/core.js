@@ -18,20 +18,23 @@
   };
 
   const defaults = () => ({
-    profile: { sex: '', age: '', height: '', goal: '', activity: 1.375, pace: 1, start: null },
+    profile: { nickname: '', avatar: '', sex: '', age: '', height: '', goal: '', activity: 1.375, pace: 1, start: null, since: null },
     weights: [],      // [{d, w(斤), waist(厘米，可空)}]，按日期排序
     foods: {},        // { 'YYYY-MM-DD': [{id, meal:'b'|'l'|'d'|'s', name, amount, kcal, protein, src}] }
     exercise: {},     // { 'YYYY-MM-DD': [{id, name, kcal}] }
     custom: [],       // 我的食物 [{id, name, cat:'我的食物', serving, g, kcal, protein}]
     usage: {},        // { 食物名: {n, last, kcal, protein, amount} } 用来做「常吃」
     plans: {},        // { 'YYYY-MM-DD': {roll:{b,l,d,s}, ai:null|{...}} }
-    settings: { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-flash', thinkingOff: true, dislikes: '', mode: 'any', exFactor: 0.5 }
+    mealMeta: {},     // { 'YYYY-MM-DD': { b: {note, photos:[照片id]} } } 每顿饭的备注和照片（照片本体存在 IndexedDB）
+    chat: [],         // 助手的聊天记录 [{id, role:'user'|'assistant', text, photo?, t}]
+    settings: { apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-flash', thinkingOff: true, dislikes: '', mode: 'any', exFactor: 0.5,
+      assistantName: '助手', speak: false, mealTimes: { b: '08:00', l: '12:00', s: '15:30', d: '18:30' } }
   });
 
   function merge(base, saved) {
     for (const k in saved) {
       const v = saved[k];
-      if (v && typeof v === 'object' && !Array.isArray(v) && base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]) && k !== 'foods' && k !== 'exercise' && k !== 'usage' && k !== 'plans') base[k] = merge(base[k], v);
+      if (v && typeof v === 'object' && !Array.isArray(v) && base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]) && k !== 'foods' && k !== 'exercise' && k !== 'usage' && k !== 'plans' && k !== 'mealMeta') base[k] = merge(base[k], v);
       else base[k] = v;
     }
     return base;
@@ -198,6 +201,14 @@
     return res;
   }
 
+  /** 日历上每一天的状态：none 没记 / low 明显偏少 / ok 正常 / over 超了 */
+  function dayStatus(d) {
+    const kcal = dayFoodKcal(d); if (!kcal) return { s: 'none', kcal: 0 };
+    const B = budget(d); if (!B) return { s: 'ok', kcal };
+    const r = kcal / B.total;
+    return { s: r > 1.08 ? 'over' : r < 0.7 ? 'low' : 'ok', kcal: Math.round(kcal), total: B.total };
+  }
+
   function addUsage(f) {
     const u = Store.state.usage;
     const k = f.name;
@@ -208,5 +219,5 @@
 
   window.D = D;
   window.Store = { state, save, replaceAll, reset, KEY };
-  window.Calc = { trendSeries, slope, targets, budget, analysis, weeks, dayFoodKcal, dayProtein, dayExercise, latestWeight, addUsage, r1 };
+  window.Calc = { trendSeries, slope, targets, budget, analysis, weeks, dayFoodKcal, dayProtein, dayExercise, dayLogged, dayStatus, latestWeight, addUsage, r1 };
 })();
