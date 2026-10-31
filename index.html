@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>瘦身日记</title>
+<meta name="description" content="记体重、看趋势、算热量、拍照记饮食，每天换样的减脂食谱。">
+<meta name="theme-color" content="#eef1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1311" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="瘦身日记">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  /* 字体在页面显示后再加载，连不上也不影响使用 */
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var l = document.createElement('link'); l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap';
+      document.head.appendChild(l);
+    }, 50);
+  });
+</script>
+</head>
+<body>
+<div class="app">
+  <!-- 今天 -->
+  <section class="view" data-view="today">
+    <header class="day-nav">
+      <button type="button" class="icon-btn" id="dayPrev" aria-label="前一天">‹</button>
+      <button type="button" class="day-title" id="dayTitle"></button>
+      <button type="button" class="icon-btn" id="dayNext" aria-label="后一天">›</button>
+    </header>
+    <div id="todayBody"></div>
+  </section>
+
+  <!-- 体重 -->
+  <section class="view" data-view="weight" hidden>
+    <header class="page-head"><h1>体重</h1><button type="button" class="pill-btn" id="wAdd">＋ 记录</button></header>
+    <div id="weightBody"></div>
+  </section>
+
+  <!-- 食谱 -->
+  <section class="view" data-view="plan" hidden>
+    <header class="page-head"><h1>今天吃什么</h1></header>
+    <div id="planBody"></div>
+  </section>
+
+  <!-- 我的 -->
+  <section class="view" data-view="me" hidden>
+    <header class="page-head"><h1>我的</h1></header>
+    <div id="meBody"></div>
+  </section>
+</div>
+
+<div class="quick" id="quick">
+  <button type="button" class="q-main" id="qPhoto"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="13" rx="2.5"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6.5l1.6-2.5h3.8l1.6 2.5"/></svg>拍照记录</button>
+  <button type="button" class="q-side" id="qText" aria-label="一句话记录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/><path d="M17 15l3 3-3 3" /></svg><span>说一句</span></button>
+  <button type="button" class="q-side" id="qSearch" aria-label="搜索食物"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg><span>搜索</span></button>
+</div>
+
+<nav class="tabbar" aria-label="切换页面">
+  <button type="button" data-tab="today" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 9V6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5V9M4 9v9.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V9"/><path d="M8 3v4M16 3v4M8 13h4M8 16.5h7"/></svg>今天</button>
+  <button type="button" data-tab="weight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 18.5l5-6 4 3.5 8-10"/><path d="M15.5 6h5v5"/></svg>体重</button>
+  <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h16a8 8 0 0 1-16 0z"/><path d="M8 9c0-2 1-3 2-3M12 9c0-2.5 1-4 2.5-4M16 9c0-1.5.6-2.5 1.5-2.5"/></svg>食谱</button>
+  <button type="button" data-tab="me"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/></svg>我的</button>
+</nav>
+
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="sheet-back" id="sheetBack"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+</div>
+
+<div class="setup" id="setup" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="photoInput" accept="image/*" hidden>
+
+<script src="js/core.js"></script>
+<script src="js/foods.js"></script>
+<script src="js/recipes.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

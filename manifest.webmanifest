@@ -1,0 +1,16 @@
+{
+  "name": "瘦身日记",
+  "short_name": "瘦身日记",
+  "description": "记体重、看趋势、算热量、拍照记饮食，每天换样的减脂食谱。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1ec",
+  "theme_color": "#eef1ec",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
