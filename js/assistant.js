@@ -5,7 +5,12 @@
   const S = () => Store.state;
   const name = () => (S().settings.assistantName || '助手').slice(0, 10);
   const ACT_TXT = { 1.2: '久坐', 1.375: '轻度活动', 1.55: '中度活动', 1.725: '高强度活动' };
-  let busy = false, ctrl = null, pendingPhoto = null; // {blob, dataUrl, url}
+  let busy = false, ctrl = null, pending = []; // 待发送的照片 [{blob, dataUrl, url}]，最多 9 张
+  const MAX_PHOTOS = 9;
+  const photosOf = (m) => m.photos || (m.photo ? [m.photo] : []);
+  const exTxt = (x) => x.name + (x.km ? ' ' + x.km + '公里' : x.min ? ' ' + x.min + '分钟' : '') + ' ' + x.kcal + '千卡';
+  function cardDay(j) { const t = D.todayKey(); const d = typeof j.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j.day) ? j.day : t; return d < D.add(t, -7) || d > D.add(t, 14) ? t : d; }
+  function dayWord(d) { const t = D.todayKey(); return d === t ? '' : d === D.add(t, 1) ? '明天' : d === D.add(t, 2) ? '后天' : D.short(d); }
 
   /* ---------------- 给 AI 的背景信息 ---------------- */
   function context() {
@@ -25,7 +30,14 @@
         const items = fs.filter((f) => f.meal === m); const meta = Photos.meta(today, m);
         if (items.length || (meta && meta.note)) L.push('  ' + MEALS[m] + '：' + (items.map((f) => f.name + (f.amount ? '(' + f.amount + ')' : '') + ' ' + Math.round(f.kcal) + '千卡').join('，') || '无') + (meta && meta.note ? '；备注：' + meta.note : ''));
       });
-      const ex = s.exercise[today] || []; if (ex.length) L.push('  运动：' + ex.map((x) => x.name + ' ' + x.kcal + '千卡').join('，'));
+      const ex = s.exercise[today] || []; if (ex.length) L.push('  运动：' + ex.map(exTxt).join('，'));
+    }
+    const ahead = [];
+    for (let i = 1; i <= 3; i++) {
+      const d = D.add(today, i); const fs = s.foods[d] || [];
+      if (fs.length) ahead.push(dayWord(d) + '（' + d + '）已计划 ' + Math.round(Calc.dayFoodKcal(d)) + ' 千卡：' + Object.keys(MEALS).map((m) => { const it = fs.filter((f) => f.meal === m); return it.length ? MEALS[m] + ' ' + it.map((f) => f.name).join('、') : ''; }).filter(Boolean).join('；'));
+    }
+    if (ahead.length) { L.push('已经做好的饮食计划：' + ahead.join(' | '));
     }
     const days = [];
     for (let i = 1; i <= 7; i++) {
@@ -50,6 +62,7 @@
       '- 推荐具体的一餐时，每一餐单独输出一个卡片代码块，用户可以一键记录：\n```meal\n{"slot":"b|l|d|s","name":"餐名","items":"食材和份量","kcal":数字,"protein":数字,"how":"一两句做法或点单建议"}\n```\n' +
       '- 只有当用户明确要你「帮我记一下/记录」吃了什么时，输出一个记录代码块让用户确认：\n```log\n{"slot":"b|l|d|s","items":[{"name":"食物","amount":"份量","kcal":数字,"protein":数字}]}\n```\n' +
       '  slot：b早餐 l午餐 d晚餐 s加餐，按用户说的或当前时间判断。热量按中餐常见做法估算，算上烹调油。\n' +
+      '- 用户要规划明天或之后几天时，在卡片 JSON 里加 "day":"YYYY-MM-DD"（最多到 14 天后），不加就是今天。规划多天时每一餐一个卡片。\n' +
       '原则：\n' +
       '- 建议要安全：不鼓励节食、催吐、断食多天之类的做法，不让每日摄入低于安全底线；每周减重超过 2 斤要提醒放慢。\n' +
       '- 涉及疾病、用药、怀孕、进食障碍迹象时，温和地建议咨询医生，不要做诊断。\n' +
@@ -106,18 +119,18 @@
     return out;
   }
   function mealCard(j, msg, idx) {
-    const slot = ['b', 'l', 'd', 's'].includes(j.slot) ? j.slot : UI.defaultMeal();
+    const slot = ['b', 'l', 'd', 's'].includes(j.slot) ? j.slot : UI.defaultMeal(); const day = cardDay(j), dw = dayWord(day);
     const done = msg && msg.done && msg.done[idx];
-    return '<div class="chat-card" data-card="' + idx + '" data-kind="meal" data-json="' + esc(JSON.stringify({ slot, name: j.name, items: j.items, kcal: j.kcal, protein: j.protein })) + '"><div class="cc-head"><span>' + MEALS[slot] + '推荐</span><span>' + Math.round(j.kcal || 0) + ' 千卡 · 蛋白质 ' + Math.round(j.protein || 0) + ' 克</span></div>' +
+    return '<div class="chat-card" data-card="' + idx + '" data-kind="meal" data-json="' + esc(JSON.stringify({ slot, day, name: j.name, items: j.items, kcal: j.kcal, protein: j.protein })) + '"><div class="cc-head"><span>' + (dw ? dw + ' · ' : '') + MEALS[slot] + '推荐</span><span>' + Math.round(j.kcal || 0) + ' 千卡 · 蛋白质 ' + Math.round(j.protein || 0) + ' 克</span></div>' +
       '<h5>' + esc(j.name || '') + '</h5><p>' + esc(j.items || '') + '</p>' + (j.how ? '<p class="cc-how">' + esc(j.how) + '</p>' : '') +
-      '<button type="button" class="btn sm' + (done ? ' ghost' : '') + '" data-act="eat"' + (done ? ' disabled' : '') + '>' + (done ? '已记到' + MEALS[slot] : '记为已吃') + '</button></div>';
+      '<button type="button" class="btn sm' + (done ? ' ghost' : '') + '" data-act="eat"' + (done ? ' disabled' : '') + '>' + (done ? '已记到' + (dw || '') + MEALS[slot] : (dw ? '加到' + dw + '的计划' : '记为已吃')) + '</button></div>';
   }
   function logCard(j, msg, idx) {
-    const slot = ['b', 'l', 'd', 's'].includes(j.slot) ? j.slot : UI.defaultMeal();
+    const slot = ['b', 'l', 'd', 's'].includes(j.slot) ? j.slot : UI.defaultMeal(); const day = cardDay(j), dw = dayWord(day);
     const items = Array.isArray(j.items) ? j.items : [];
     const tot = items.reduce((a, x) => a + (Number(x.kcal) || 0), 0);
     const done = msg && msg.done && msg.done[idx];
-    return '<div class="chat-card log" data-card="' + idx + '" data-kind="log" data-json="' + esc(JSON.stringify({ slot, items })) + '"><div class="cc-head"><span>记到' + MEALS[slot] + '</span><span>合计 ' + Math.round(tot) + ' 千卡</span></div>' +
+    return '<div class="chat-card log" data-card="' + idx + '" data-kind="log" data-json="' + esc(JSON.stringify({ slot, day, items })) + '"><div class="cc-head"><span>记到' + (dw ? dw + ' · ' : '') + MEALS[slot] + '</span><span>合计 ' + Math.round(tot) + ' 千卡</span></div>' +
       '<ul>' + items.map((x) => '<li><span>' + esc(x.name) + (x.amount ? ' <small>' + esc(x.amount) + '</small>' : '') + '</span><b>' + Math.round(x.kcal || 0) + '</b></li>').join('') + '</ul>' +
       '<button type="button" class="btn sm' + (done ? ' ghost' : '') + '" data-act="log"' + (done ? ' disabled' : '') + '>' + (done ? '已记录' : '确认记录') + '</button></div>';
   }
@@ -140,7 +153,8 @@
     scrollEnd();
   }
   function bubble(m, i) {
-    if (m.role === 'user') return '<div class="msg me" data-i="' + i + '">' + (m.photo ? '<div class="msg-photo" data-photo="' + m.photo + '"></div>' : '') + (m.text ? '<div class="bub">' + esc(m.text).replace(/\n/g, '<br>') + '</div>' : '') + '</div>';
+    const ph = photosOf(m);
+    if (m.role === 'user') return '<div class="msg me" data-i="' + i + '">' + (ph.length ? '<div class="msg-photos n' + Math.min(ph.length, 3) + '">' + ph.map((id) => '<div class="msg-photo" data-photo="' + id + '"></div>').join('') + '</div>' : '') + (m.text ? '<div class="bub">' + esc(m.text).replace(/\n/g, '<br>') + '</div>' : '') + '</div>';
     return '<div class="msg ai" data-i="' + i + '"><div class="bub md">' + (m.text ? md(m.text, m) : '<span class="typing"><i></i><i></i><i></i></span>') + '</div>' +
       (m.text && !m.streaming ? '<div class="msg-tools"><button type="button" data-tool="speak" aria-label="朗读">' + ICONS.speaker + '</button><button type="button" data-tool="copy" aria-label="复制">' + ICONS.copy + '</button></div>' : '') +
       (m.error ? '<p class="msg-err">' + esc(m.error) + '</p>' : '') + '</div>';
@@ -152,12 +166,13 @@
       const data = JSON.parse(c.dataset.json);
       const msgEl = c.closest('.msg'); const msg = S().chat[Number(msgEl.dataset.i)]; const idx = Number(c.dataset.card);
       btn.addEventListener('click', () => {
-        const today = D.todayKey(); const list = S().foods[today] || (S().foods[today] = []);
+        const today = data.day || D.todayKey(); const future = today > D.todayKey(); const dw = dayWord(today); const list = S().foods[today] || (S().foods[today] = []);
         const items = c.dataset.kind === 'meal' ? [{ name: data.name, amount: String(data.items || '').slice(0, 30), kcal: Number(data.kcal) || 0, protein: Number(data.protein) || 0 }] : data.items.map((x) => ({ name: String(x.name || '食物'), amount: String(x.amount || ''), kcal: Number(x.kcal) || 0, protein: Number(x.protein) || 0 }));
-        items.forEach((it) => { const e = { id: D.uid(), meal: data.slot, name: it.name, amount: it.amount, kcal: Math.round(it.kcal), protein: Calc.r1(it.protein), src: 'ai' }; list.push(e); Calc.addUsage(e); });
+        items.forEach((it) => { const e = { id: D.uid(), meal: data.slot, name: it.name, amount: it.amount, kcal: Math.round(it.kcal), protein: Calc.r1(it.protein), src: future ? 'plan' : 'ai' }; list.push(e); Calc.addUsage(e); });
         msg.done = msg.done || {}; msg.done[idx] = true; Store.save();
-        btn.disabled = true; btn.classList.add('ghost'); btn.textContent = c.dataset.kind === 'meal' ? '已记到' + MEALS[data.slot] : '已记录';
-        const B = Calc.budget(today); toast('已记到' + MEALS[data.slot] + '，' + (B.left >= 0 ? '今天还能吃 ' + B.left : '今天超出 ' + (-B.left)) + ' 千卡');
+        btn.disabled = true; btn.classList.add('ghost'); btn.textContent = c.dataset.kind === 'meal' ? '已记到' + (dw || '') + MEALS[data.slot] : '已记录';
+        const B = Calc.budget(today); const who = dw || '今天';
+        toast('已记到' + (dw ? dw + '的' : '') + MEALS[data.slot] + '，' + (B.left >= 0 ? who + (future ? '还剩 ' : '还能吃 ') + B.left : who + '超出 ' + (-B.left)) + ' 千卡');
       });
     });
     $$('.msg.ai [data-tool]', root).forEach((b) => b.addEventListener('click', () => {
@@ -196,11 +211,11 @@
     if (busy) { if (ctrl) ctrl.abort(); return; }
     if (!AI.ready()) { toast('先在「我的 → AI 设置」里填写 DeepSeek 密钥'); return; }
     const inp = $('#chatInput'); const text = inp.value.trim();
-    if (!text && !pendingPhoto) return;
+    if (!text && !pending.length) return;
     const msgs = S().chat;
     const um = { id: D.uid(), role: 'user', text, t: Date.now() };
-    let imgData = null;
-    if (pendingPhoto) { um.photo = await Photos.put(pendingPhoto.blob); imgData = pendingPhoto.dataUrl; clearPhoto(); Photos.persist(); }
+    let imgs = [];
+    if (pending.length) { const batch = pending.slice(); um.photos = []; for (const p of batch) um.photos.push(await Photos.put(p.blob)); imgs = batch.map((p) => p.dataUrl); clearPhotos(); Photos.persist(); }
     msgs.push(um);
     inp.value = ''; autosize();
     const am = { id: D.uid(), role: 'assistant', text: '', t: Date.now(), streaming: true };
@@ -208,8 +223,8 @@
     if (msgs.length > 200) msgs.splice(0, msgs.length - 200);
     Store.save(); render(); setBusy(true);
     // 只带最近 12 条消息，避免越聊越贵
-    const hist = msgs.slice(0, -1).slice(-12).map((m) => ({ role: m.role, content: (m.photo && m !== um ? '[发了一张照片] ' : '') + (m.text || (m.photo ? '（照片）' : '')) }));
-    if (imgData) hist[hist.length - 1] = { role: 'user', content: [{ type: 'text', text: text || '帮我看看这张照片里的食物，大概多少热量？适合我现在吃吗？' }, { type: 'image_url', image_url: { url: imgData } }] };
+    const hist = msgs.slice(0, -1).slice(-12).map((m) => { const n = photosOf(m).length; return { role: m.role, content: (n && m !== um ? '[发了' + n + '张照片] ' : '') + (m.text || (n ? '（照片）' : '')) }; });
+    if (imgs.length) hist[hist.length - 1] = { role: 'user', content: [{ type: 'text', text: (text || (imgs.length === 1 ? '帮我看看这张照片里的食物，大概多少热量？适合我现在吃吗？' : '帮我看看这几张照片里的食物，大概一共多少热量？适合我现在吃吗？')) + (imgs.length > 1 ? '\n（一共 ' + imgs.length + ' 张照片）' : '') }].concat(imgs.map((u) => ({ type: 'image_url', image_url: { url: u } }))) };
     ctrl = new AbortController();
     let lastPaint = 0;
     try {
@@ -226,7 +241,16 @@
   }
 
   function autosize() { const t = $('#chatInput'); t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; }
-  function clearPhoto() { if (pendingPhoto) URL.revokeObjectURL(pendingPhoto.url); pendingPhoto = null; $('#chatAttach').hidden = true; $('#chatAttach').innerHTML = ''; }
+  function clearPhotos() { pending.forEach((p) => URL.revokeObjectURL(p.url)); pending = []; drawPending(); }
+  function drawPending() {
+    const a = $('#chatAttach');
+    if (!pending.length) { a.hidden = true; a.innerHTML = ''; return; }
+    a.hidden = false;
+    a.innerHTML = '<div class="att-strip">' + pending.map((p, i) => '<span class="att"><img alt="待发送的第' + (i + 1) + '张照片" src="' + p.url + '"><button type="button" data-rm="' + i + '" aria-label="去掉这张">×</button></span>').join('') +
+      (pending.length < MAX_PHOTOS ? '<button type="button" class="att-add" id="attMore" aria-label="再加照片">＋</button>' : '') + '</div><span class="att-count">' + pending.length + ' / ' + MAX_PHOTOS + '</span>';
+    $$('[data-rm]', a).forEach((b) => b.addEventListener('click', () => { const i = Number(b.dataset.rm); URL.revokeObjectURL(pending[i].url); pending.splice(i, 1); drawPending(); }));
+    const more = $('#attMore', a); if (more) more.addEventListener('click', () => $('#chatPhoto').click());
+  }
 
   function init() {
     $('#chatInput').addEventListener('input', autosize);
@@ -234,27 +258,29 @@
     $('#chatSend').addEventListener('click', send);
     $('#chatPhotoBtn').addEventListener('click', () => $('#chatPhoto').click());
     $('#chatPhoto').addEventListener('change', async (e) => {
-      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-      try {
-        const blob = await Photos.compress(f, 1024, 0.82);
-        const url = URL.createObjectURL(blob);
-        const dataUrl = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-        clearPhoto(); pendingPhoto = { blob, dataUrl, url };
-        const a = $('#chatAttach'); a.hidden = false;
-        a.innerHTML = '<img alt="待发送的照片" src="' + url + '"><button type="button" aria-label="去掉照片">×</button>';
-        $('button', a).addEventListener('click', clearPhoto);
-        $('#chatInput').focus();
-      } catch (err) { toast('这张图片打不开，换一张试试'); }
+      const files = Array.from(e.target.files || []); e.target.value = ''; if (!files.length) return;
+      const room = MAX_PHOTOS - pending.length;
+      if (files.length > room) toast('一次最多发 ' + MAX_PHOTOS + ' 张，多出来的 ' + (files.length - room) + ' 张没有加上');
+      let bad = 0;
+      for (const f of files.slice(0, room)) {
+        try {
+          const blob = await Photos.compress(f, 1024, 0.8);
+          const url = URL.createObjectURL(blob);
+          const dataUrl = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+          pending.push({ blob, dataUrl, url }); drawPending();
+        } catch (err) { bad++; }
+      }
+      if (bad) toast('有 ' + bad + ' 张图片打不开，换一张试试');
     });
     $('#chatNew').addEventListener('click', () => {
       if (!S().chat.length) return;
       const b = $('#chatNew');
       if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = '确定清空？'; setTimeout(() => { b.classList.remove('armed'); b.textContent = '新对话'; }, 3000); return; }
       b.classList.remove('armed'); b.textContent = '新对话';
-      S().chat.forEach((m) => { if (m.photo) Photos.del(m.photo); });
+      S().chat.forEach((m) => photosOf(m).forEach((id) => Photos.del(id)));
       S().chat = []; Store.save(); render();
     });
   }
 
-  window.Assistant = { render, init, context, clear() { S().chat.forEach((m) => { if (m.photo) Photos.del(m.photo); }); S().chat = []; Store.save(); } };
+  window.Assistant = { render, init, context, clear() { S().chat.forEach((m) => photosOf(m).forEach((id) => Photos.del(id))); S().chat = []; Store.save(); } };
 })();

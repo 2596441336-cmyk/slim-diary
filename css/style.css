@@ -352,7 +352,13 @@ body[data-tab="chat"] .app { padding-bottom: calc(var(--tab-h) + env(safe-area-i
 .msg { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
 .msg.me { align-items: flex-end; }
 .msg.me .bub { max-width: 82%; padding: 9px 13px; border-radius: 16px 16px 4px 16px; background: var(--accent); color: var(--accent-ink); font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
-.msg-photo { width: 150px; border-radius: 12px; overflow: hidden; background: var(--surface-2); min-height: 80px; }
+.msg-photos { display: grid; gap: 4px; width: min(240px, 72vw); }
+.msg-photos.n1 { width: 150px; }
+.msg-photos.n2 { grid-template-columns: 1fr 1fr; }
+.msg-photos.n3 { grid-template-columns: 1fr 1fr 1fr; }
+.msg-photo { border-radius: 10px; overflow: hidden; background: var(--surface-2); min-height: 60px; }
+.msg-photos:not(.n1) .msg-photo { aspect-ratio: 1; }
+.msg-photos:not(.n1) .msg-photo img { width: 100%; height: 100%; object-fit: cover; }
 .msg-photo img { display: block; width: 100%; }
 .msg.ai .bub { max-width: 100%; padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--surface); box-shadow: var(--shadow); font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; min-width: 0; }
 .md p { margin: 0 0 8px; }
@@ -401,9 +407,14 @@ body[data-tab="chat"] .app { padding-bottom: calc(var(--tab-h) + env(safe-area-i
 .chat-ico svg, .chat-send svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .chat-send.stop { background: var(--ink); }
 .stop-sq { width: 12px; height: 12px; border-radius: 2px; background: var(--surface); }
-.chat-attach { position: relative; max-width: 560px; margin: 0 auto 8px; }
-.chat-attach img { height: 72px; border-radius: 10px; display: block; }
-.chat-attach button { position: absolute; top: -6px; left: 62px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--ink); color: var(--surface); font-size: 15px; line-height: 1; }
+.chat-attach { max-width: 560px; margin: 0 auto 8px; display: flex; align-items: flex-end; gap: 8px; }
+.att-strip { display: flex; gap: 8px; overflow-x: auto; padding-top: 7px; flex: 1; min-width: 0; scrollbar-width: none; }
+.att-strip::-webkit-scrollbar { display: none; }
+.att { position: relative; flex: none; }
+.att img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; }
+.att button { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--ink); color: var(--surface); font-size: 14px; line-height: 1; }
+.att-add { flex: none; width: 64px; height: 64px; border-radius: 10px; border: 1.5px dashed var(--line); background: none; color: var(--soft); font-size: 24px; }
+.att-count { font-size: 12px; color: var(--faint); font-family: var(--f-num); white-space: nowrap; }
 
 /* ---------- 食谱日历 ---------- */
 .section-title { font-size: 18px; font-weight: 700; margin: 8px 2px -2px; padding-top: 10px; border-top: 4px solid var(--rule); }
@@ -428,6 +439,15 @@ body[data-tab="chat"] .app { padding-bottom: calc(var(--tab-h) + env(safe-area-i
 .cal-cell.sel { background: var(--ink); }
 .cal-cell.sel .cd, .cal-cell.sel .ck { color: var(--surface); }
 .cal-cell.future { opacity: .35; cursor: default; }
+.cal-cell.ahead { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+.cal-cell.s-plan { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); border-style: dashed; }
+.cal-cell.s-plan .ck { color: var(--accent); }
+.cal-cell.ahead.sel, .cal-cell.s-plan.sel { background: var(--ink); box-shadow: none; }
+.lg.s-plan { background: none; box-shadow: inset 0 0 0 1px var(--accent); border: 1px dashed var(--accent); }
+.dd-head h2 .tag { vertical-align: 3px; }
+.plan-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--accent); border-radius: 12px; background: var(--accent-soft); }
+.plan-banner p { margin: 0; flex: 1; font-size: 13.5px; line-height: 1.55; }
+.plan-banner .btn { flex: none; white-space: nowrap; }
 .cal-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 11.5px; color: var(--soft); }
 .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .lg { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }

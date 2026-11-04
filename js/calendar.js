@@ -4,6 +4,7 @@
   const S = () => Store.state;
   const pad = (n) => String(n).padStart(2, '0');
   let month = D.todayKey().slice(0, 7), sel = D.todayKey(), aiBusy = false;
+  const maxDay = () => D.add(D.todayKey(), 14); // 最多可以提前规划 14 天
 
   /* ---------------- 每顿饭的备注和照片 ---------------- */
   function mealSheet(day, meal, after) {
@@ -52,31 +53,32 @@
       const st = Calc.dayStatus(key); const meta = S().mealMeta[key];
       const hasPhoto = meta && Object.values(meta).some((x) => x.photos && x.photos.length);
       const hasNote = meta && Object.values(meta).some((x) => x.note);
-      if (st.kcal) { logged++; sum += st.kcal; }
-      cells += '<button type="button" class="cal-cell s-' + st.s + (key === today ? ' today' : '') + (key === sel ? ' sel' : '') + (key > today ? ' future' : '') + '" data-d="' + key + '" aria-label="' + D.label(key) + (st.kcal ? '，' + st.kcal + ' 千卡' : '，没有记录') + '">' +
+      if (st.kcal && key <= today) { logged++; sum += st.kcal; }
+      cells += '<button type="button" class="cal-cell s-' + st.s + (key === today ? ' today' : '') + (key === sel ? ' sel' : '') + (key > maxDay() ? ' future' : key > today ? ' ahead' : '') + '" data-d="' + key + '" aria-label="' + D.label(key) + (st.kcal ? (key > today ? '，计划 ' : '，') + st.kcal + ' 千卡' : (key > today ? '，还没有计划' : '，没有记录')) + '">' +
         '<span class="cd">' + d + '</span><span class="ck">' + (st.kcal || '') + '</span><span class="cm">' + (hasPhoto ? '<i class="m-ph"></i>' : '') + (hasNote ? '<i class="m-nt"></i>' : '') + '</span></button>';
     }
-    el.innerHTML = '<div class="cal-head"><button type="button" class="icon-btn" id="calPrev" aria-label="上个月">‹</button><h2>' + y + '年' + mo + '月</h2><button type="button" class="icon-btn" id="calNext" aria-label="下个月"' + (month >= today.slice(0, 7) ? ' disabled' : '') + '>›</button></div>' +
+    el.innerHTML = '<div class="cal-head"><button type="button" class="icon-btn" id="calPrev" aria-label="上个月">‹</button><h2>' + y + '年' + mo + '月</h2><button type="button" class="icon-btn" id="calNext" aria-label="下个月"' + (month >= maxDay().slice(0, 7) ? ' disabled' : '') + '>›</button></div>' +
       '<div class="cal-week">' + ['一', '二', '三', '四', '五', '六', '日'].map((w) => '<span>' + w + '</span>').join('') + '</div>' +
       '<div class="cal-grid">' + cells + '</div>' +
-      '<div class="cal-legend"><span><i class="lg s-ok"></i>正常</span><span><i class="lg s-low"></i>偏少</span><span><i class="lg s-over"></i>超出</span><span><i class="m-ph"></i>有照片</span><span><i class="m-nt"></i>有备注</span></div>' +
+      '<div class="cal-legend"><span><i class="lg s-plan"></i>计划</span><span><i class="lg s-ok"></i>正常</span><span><i class="lg s-low"></i>偏少</span><span><i class="lg s-over"></i>超出</span><span><i class="m-ph"></i>有照片</span><span><i class="m-nt"></i>有备注</span></div>' +
       '<p class="cal-sum">这个月记录了 <b>' + logged + '</b> 天' + (logged ? '，平均每天 <b>' + Math.round(sum / logged) + '</b> 千卡' : '') + '</p>';
     $('#calPrev').addEventListener('click', () => { shiftMonth(-1); renderCalendar(); });
     $('#calNext').addEventListener('click', () => { shiftMonth(1); renderCalendar(); });
-    $$('.cal-cell[data-d]', el).forEach((b) => b.addEventListener('click', () => { if (b.dataset.d > today) return; sel = b.dataset.d; renderCalendar(); renderDay(); }));
+    $$('.cal-cell[data-d]', el).forEach((b) => b.addEventListener('click', () => { if (b.dataset.d > maxDay()) { toast('最多可以提前规划 14 天'); return; } sel = b.dataset.d; renderCalendar(); renderDay(); }));
   }
 
   async function renderDay() {
     const el = $('#calDay'); const day = sel;
     const fs = S().foods[day] || []; const B = Calc.budget(day);
     const tot = Math.round(Calc.dayFoodKcal(day));
-    let html = '<header class="dd-head"><div><h2>' + D.label(day) + '</h2><p>' + (tot ? '吃了 <b>' + tot + '</b> 千卡' + (B ? ' / 目标 ' + B.total : '') + ' · 蛋白质 ' + Math.round(Calc.dayProtein(day)) + ' 克' : '这一天还没有记录') + '</p></div>' +
-      '<button type="button" class="btn ghost sm" id="ddGo">' + (day === D.todayKey() ? '去记录' : '补记这天') + '</button></header>';
+    const future = day > D.todayKey();
+    let html = '<header class="dd-head"><div><h2>' + D.label(day) + (future ? '<em class="tag soft">计划</em>' : '') + '</h2><p>' + (tot ? (future ? '计划吃 ' : '吃了 ') + '<b>' + tot + '</b> 千卡' + (B ? ' / 目标 ' + B.total : '') + ' · 蛋白质 ' + Math.round(Calc.dayProtein(day)) + ' 克' : (future ? '这一天还没有计划' : '这一天还没有记录')) + '</p></div>' +
+      '<button type="button" class="btn ghost sm" id="ddGo">' + (future ? '去安排' : day === D.todayKey() ? '去记录' : '补记这天') + '</button></header>';
     Object.keys(MEALS).forEach((m) => {
       const items = fs.filter((f) => f.meal === m); const meta = Photos.meta(day, m);
       const sum = Math.round(items.reduce((a, f) => a + Number(f.kcal || 0), 0));
       html += '<section class="dd-meal"><div class="ddm-top"><h3>' + MEALS[m] + '</h3><span>' + (sum ? sum + ' 千卡' : '') + '</span><button type="button" class="mini-tool" data-meta="' + m + '" aria-label="' + MEALS[m] + '的备注和照片">' + ICONS.camera + '</button></div>' +
-        (items.length ? '<ul>' + items.map((f) => '<li><span>' + esc(f.name) + '</span><small>' + esc(f.amount || '') + '</small><b>' + Math.round(f.kcal) + '</b></li>').join('') + '</ul>' : '<p class="faint small">没有记录</p>') +
+        (items.length ? '<ul>' + items.map((f) => '<li><span>' + esc(f.name) + '</span><small>' + esc(f.amount || '') + '</small><b>' + Math.round(f.kcal) + '</b></li>').join('') + '</ul>' : '<p class="faint small">' + (future ? '还没有计划' : '没有记录') + '</p>') +
         (meta && meta.note ? '<p class="dd-note">' + esc(meta.note) + '</p>' : '') +
         (meta && meta.photos.length ? '<div class="dd-photos" data-m="' + m + '">' + meta.photos.map((id) => '<button type="button" class="ph sm" data-id="' + id + '" aria-label="查看照片"></button>').join('') + '</div>' : '') + '</section>';
     });
@@ -149,7 +151,7 @@
   }
 
   function render() {
-    if (sel > D.todayKey()) sel = D.todayKey();
+    if (sel > maxDay()) sel = D.todayKey();
     renderCalendar(); renderDay(); renderRec();
   }
 

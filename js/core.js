@@ -204,6 +204,7 @@
   /** 日历上每一天的状态：none 没记 / low 明显偏少 / ok 正常 / over 超了 */
   function dayStatus(d) {
     const kcal = dayFoodKcal(d); if (!kcal) return { s: 'none', kcal: 0 };
+    if (d > D.todayKey()) return { s: 'plan', kcal: Math.round(kcal) };
     const B = budget(d); if (!B) return { s: 'ok', kcal };
     const r = kcal / B.total;
     return { s: r > 1.08 ? 'over' : r < 0.7 ? 'low' : 'ok', kcal: Math.round(kcal), total: B.total };

@@ -6,6 +6,19 @@
   UI.init();
 
   let curTab = 'today', curDay = D.todayKey();
+  const AHEAD = 14; // 最多可以提前规划 14 天
+  function rel(d) { const t = D.todayKey(); return d === t ? '今天' : d === D.add(t, 1) ? '明天' : d === D.add(t, 2) ? '后天' : d === D.add(t, -1) ? '昨天' : ''; }
+
+  /* 运动：跑步、走路这类按公里算，其他按时长算。消耗按体重估算，也可以直接填手表上的数字。 */
+  const EX = [
+    { n: '跑步', u: 'km', k: 1.0 }, { n: '慢跑', u: 'km', k: 0.95 }, { n: '快走', u: 'km', k: 0.6 }, { n: '散步', u: 'km', k: 0.5 }, { n: '徒步', u: 'km', k: 0.8 },
+    { n: '骑车', u: 'min', met: 6.8 }, { n: '游泳', u: 'min', met: 6 }, { n: '力量训练', u: 'min', met: 5 }, { n: '跳绳', u: 'min', met: 11 }, { n: '跳操', u: 'min', met: 7 },
+    { n: '瑜伽', u: 'min', met: 2.5 }, { n: '羽毛球', u: 'min', met: 5.5 }, { n: '篮球', u: 'min', met: 6.5 }, { n: '爬楼梯', u: 'min', met: 8 }, { n: '其他', u: 'min', met: 0 }
+  ];
+  function exAmount(x) {
+    if (x.km) { const pace = x.min ? x.min / x.km : 0; return x.km + ' 公里' + (pace ? ' · 配速 ' + Math.floor(pace) + "'" + String(Math.round((pace % 1) * 60)).padStart(2, '0') + '"' : ''); }
+    return x.min ? x.min + ' 分钟' : '';
+  }
 
   /* ---------------- 首次设置 ---------------- */
   function showSetup() {
@@ -41,22 +54,24 @@
 
   /* ---------------- 今天 ---------------- */
   async function renderToday() {
-    const isToday = curDay === D.todayKey();
-    $('#dayTitle').textContent = isToday ? '今天 · 周' + D.week[D.parse(curDay).getDay()] + ' ' + D.short(curDay) : D.label(curDay);
-    $('#dayNext').disabled = curDay >= D.todayKey();
+    const isToday = curDay === D.todayKey(), future = curDay > D.todayKey(), rw = rel(curDay);
+    $('#dayTitle').textContent = rw ? rw + ' · 周' + D.week[D.parse(curDay).getDay()] + ' ' + D.short(curDay) : D.label(curDay);
+    $('#dayNext').disabled = curDay >= D.add(D.todayKey(), AHEAD);
+    $('#dayNext').setAttribute('aria-label', curDay >= D.todayKey() ? '规划后一天' : '后一天');
     const B = Calc.budget(curDay); const body = $('#todayBody');
     if (!B) { body.innerHTML = ''; return; }
     const over = B.left < 0, T = Calc.targets();
     const pctE = Math.min(100, B.eaten / B.total * 100), pctP = Math.min(100, B.protein / B.proteinTarget * 100);
     let html = '<article class="label-card' + (over ? ' is-over' : '') + '">' +
-      '<div class="lc-head"><span>营养成分 · ' + (isToday ? '今天' : D.short(curDay)) + '</span><span>' + (T.calibrated ? '已按实际校准' : '估算') + '</span></div>' +
-      '<div class="lc-big"><span class="lc-cap">' + (over ? '超出' : '还能吃') + '</span><span class="lc-num">' + Math.abs(B.left) + '</span><span class="lc-unit">千卡</span></div>' +
+      '<div class="lc-head"><span>' + (future ? '饮食计划 · ' + (rw || D.short(curDay)) : '营养成分 · ' + (isToday ? '今天' : D.short(curDay))) + '</span><span>' + (T.calibrated ? '已按实际校准' : '估算') + '</span></div>' +
+      '<div class="lc-big"><span class="lc-cap">' + (future ? (over ? '计划超出' : '计划还剩') : (over ? '超出' : '还能吃')) + '</span><span class="lc-num">' + Math.abs(B.left) + '</span><span class="lc-unit">千卡</span></div>' +
       '<div class="lc-bar" role="img" aria-label="已吃 ' + B.eaten + ' 千卡，共 ' + B.total + ' 千卡"><i style="width:' + pctE + '%"></i></div>' +
-      '<dl class="lc-rows"><div><dt>每日目标</dt><dd>' + B.target + '</dd></div><div><dt>运动加回</dt><dd>' + (B.exercise ? '+' + B.exercise : '0') + '</dd></div><div><dt>已经吃了</dt><dd>' + B.eaten + '</dd></div></dl>' +
+      '<dl class="lc-rows"><div><dt>每日目标</dt><dd>' + B.target + '</dd></div><div><dt>运动加回</dt><dd>' + (B.exercise ? '+' + B.exercise : '0') + '</dd></div><div><dt>' + (future ? '已经计划' : '已经吃了') + '</dt><dd>' + B.eaten + '</dd></div></dl>' +
       '<div class="lc-prot"><span>蛋白质</span><span class="lc-pbar"><i style="width:' + pctP + '%"></i></span><span class="lc-pval">' + B.protein + ' / ' + B.proteinTarget + ' 克</span></div>' +
-      (over ? '<p class="lc-note">今天吃多了一点也没关系，体重看的是一周的平均。明天照常就好。</p>' : '') + '</article>';
+      (over ? '<p class="lc-note">' + (future ? '计划的量比目标多了一点，可以换个轻一点的搭配，也可以就这样，体重看的是一周的平均。' : '今天吃多了一点也没关系，体重看的是一周的平均。明天照常就好。') + '</p>' : '') + '</article>';
     const wToday = S().weights.find((e) => e.d === curDay);
-    html += '<div class="weigh-row">' + (wToday
+    if (future) html += '<div class="plan-banner"><p>这是' + (rw || D.short(curDay)) + '的饮食计划。先把想吃的加进来，到了那天按实际情况改就行。</p><button type="button" class="btn sm" id="autoPlan">按推荐自动排好</button></div>';
+    else html += '<div class="weigh-row">' + (wToday
       ? '<span class="wr-label">' + (isToday ? '今天' : '这天') + '的体重</span><b class="wr-val">' + wToday.w + '</b><span class="wr-unit">斤</span><button type="button" class="link" id="wEditToday">修改</button>'
       : '<label for="wQuick" class="wr-label">' + (isToday ? '今天称了吗？' : '这天的体重') + '</label><div class="unit-in sm"><input id="wQuick" type="number" inputmode="decimal" step="0.1" placeholder="' + (Calc.latestWeight() || '') + '"><em>斤</em></div><button type="button" class="btn sm" id="wQuickSave">记下</button>') + '</div>';
     const foods = S().foods[curDay] || [];
@@ -66,12 +81,12 @@
       html += '<section class="meal"><header><h2>' + MEALS[m] + '</h2><span class="m-sum">' + (sum ? Math.round(sum) + ' 千卡' : '') + '</span>' +
         '<button type="button" class="mini-tool" data-meta="' + m + '" aria-label="' + MEALS[m] + '的备注和照片">' + ICONS.note + '</button>' +
         '<button type="button" class="add-mini" data-add="' + m + '" aria-label="给' + MEALS[m] + '添加">＋</button></header>' +
-        (fs.length ? '<ul>' + fs.map((f) => '<li data-id="' + f.id + '"><span class="f-name">' + esc(f.name) + (f.src === 'ai' ? '<em class="tag">AI</em>' : '') + '</span><span class="f-amt">' + esc(f.amount || '') + '</span><span class="f-kcal">' + Math.round(f.kcal) + '</span></li>').join('') + '</ul>' : '') +
+        (fs.length ? '<ul>' + fs.map((f) => '<li data-id="' + f.id + '"><span class="f-name">' + esc(f.name) + (f.src === 'ai' ? '<em class="tag">AI</em>' : f.src === 'plan' ? '<em class="tag soft">计划</em>' : '') + '</span><span class="f-amt">' + esc(f.amount || '') + '</span><span class="f-kcal">' + Math.round(f.kcal) + '</span></li>').join('') + '</ul>' : '') +
         (meta && (meta.note || meta.photos.length) ? '<div class="meal-meta" data-mm="' + m + '">' + (meta.photos.length ? '<div class="mm-ph">' + meta.photos.slice(0, 4).map((id) => '<span class="ph xs" data-id="' + id + '"></span>').join('') + '</div>' : '') + (meta.note ? '<p>' + esc(meta.note) + '</p>' : '') + '</div>' : '') + '</section>';
     });
     const ex = S().exercise[curDay] || [];
     html += '<section class="meal ex"><header><h2>运动</h2><span class="m-sum">' + (ex.length ? Calc.dayExercise(curDay) + ' 千卡' : '') + '</span><button type="button" class="add-mini" id="exAdd" aria-label="添加运动">＋</button></header>' +
-      (ex.length ? '<ul>' + ex.map((x) => '<li data-ex="' + x.id + '"><span class="f-name">' + esc(x.name) + '</span><span class="f-amt"></span><span class="f-kcal">' + x.kcal + '</span></li>').join('') + '</ul>' : '<p class="empty-line">运动消耗只按一半加回预算，因为手表和 App 通常会高估。</p>') + '</section>';
+      (ex.length ? '<ul>' + ex.map((x) => '<li data-ex="' + x.id + '"><span class="f-name">' + esc(x.name) + '</span><span class="f-amt">' + esc(exAmount(x)) + '</span><span class="f-kcal">' + x.kcal + '</span></li>').join('') + '</ul>' : '<p class="empty-line">运动消耗只按一半加回预算，因为手表和 App 通常会高估。</p>') + '</section>';
     body.innerHTML = html;
     $$('[data-add]', body).forEach((b) => b.addEventListener('click', () => openSearch(b.dataset.add)));
     $$('[data-meta]', body).forEach((b) => b.addEventListener('click', () => Cal.mealSheet(curDay, b.dataset.meta, renderToday)));
@@ -88,10 +103,17 @@
       toast('记下了。' + (prev && v - prev.w > 0.6 ? '比上次重一点，多半是水分，看趋势就好。' : ''));
     });
     const we = $('#wEditToday'); if (we) we.addEventListener('click', () => weightSheet(curDay));
+    const ap = $('#autoPlan');
+    if (ap) ap.addEventListener('click', () => {
+      const P = Recipes.plan(curDay); Store.save(); if (!P) return;
+      let n = 0;
+      Object.keys(MEALS).forEach((k) => { const m = P.meals[k]; if (m && m.r) { addEntries(curDay, k, [{ name: m.r.name, amount: m.r.items.slice(0, 30), kcal: m.r.kcal, protein: m.r.protein }], 'plan'); n++; } });
+      toast(n ? '排好了 ' + n + ' 顿，点任意一条可以修改或删除' : '这一天的每一餐都已经有计划了');
+    });
     for (const el of $$('.mm-ph .ph', body)) { const u = await Photos.url(el.dataset.id); if (u) el.style.backgroundImage = 'url(' + u + ')'; }
   }
-  $('#dayPrev').addEventListener('click', () => { curDay = D.add(curDay, -1); renderToday(); });
-  $('#dayNext').addEventListener('click', () => { if (curDay < D.todayKey()) { curDay = D.add(curDay, 1); renderToday(); } });
+  $('#dayPrev').addEventListener('click', () => { curDay = D.add(curDay, -1); renderToday(); window.scrollTo(0, 0); });
+  $('#dayNext').addEventListener('click', () => { if (curDay < D.add(D.todayKey(), AHEAD)) { curDay = D.add(curDay, 1); renderToday(); window.scrollTo(0, 0); } });
   $('#dayTitle').addEventListener('click', () => { curDay = D.todayKey(); renderToday(); });
 
   function addEntries(day, meal, items, src) {
@@ -118,18 +140,50 @@
 
   function exerciseSheet(id) {
     const list = S().exercise[curDay] || []; const x = id ? list.find((y) => y.id === id) : null;
-    const presets = { '快走 30 分钟': 130, '慢跑 30 分钟': 280, '骑车 30 分钟': 220, '游泳 30 分钟': 260, '力量训练 45 分钟': 200, '跳绳 15 分钟': 170, '瑜伽 45 分钟': 140, '跳操 30 分钟': 200 };
+    // 旧版本记录的运动只有名称和千卡（比如「快走 30 分钟」），按「其他」读进来，时长从名称里取
+    if (x && !x.type) { const mm = String(x.name).match(/(\d+)\s*分钟/); x.min = x.min || (mm ? Number(mm[1]) : 0); }
+    let type = x ? (x.type ? (EX.find((t) => t.n === x.type) || EX[EX.length - 1]) : EX[EX.length - 1]) : EX[0];
+    // 修改已有记录时保留原来的千卡数，除非改了距离或时长
+    let manual = !!x;
+    const kg = (Calc.latestWeight() || 120) / 2;
+    const chips = (u) => EX.filter((t) => t.u === u).map((t) => '<button type="button" class="chip' + (t === type ? ' on' : '') + '" data-ty="' + t.n + '">' + t.n + '</button>').join('');
     openSheet('<h3 class="sheet-title">' + (x ? '修改运动' : '记一次运动') + '</h3>' +
-      (x ? '' : '<div class="chips">' + Object.keys(presets).map((k) => '<button type="button" class="chip" data-p="' + esc(k) + '">' + esc(k) + '</button>').join('') + '</div>') +
-      '<form id="exF" class="form" autocomplete="off"><label class="field"><span>运动</span><input id="xName" maxlength="20" value="' + esc(x ? x.name : '') + '" placeholder="比如：快走 40 分钟"></label>' +
-      '<label class="field"><span>消耗</span><div class="unit-in"><input id="xKcal" type="number" inputmode="numeric" value="' + (x ? x.kcal : '') + '" placeholder="手表或 App 上的数字"><em>千卡</em></div><small>只按一半加回今天的预算。</small></label>' +
+      '<div class="field"><span class="f-lab">按公里</span><div class="chips" id="exKm">' + chips('km') + '</div></div>' +
+      '<div class="field"><span class="f-lab">按时长</span><div class="chips" id="exMin">' + chips('min') + '</div></div>' +
+      '<form id="exF" class="form" autocomplete="off">' +
+      '<label class="field" id="xNameRow"><span>运动名称</span><input id="xName" maxlength="20" value="' + esc(x && type.n === '其他' ? String(x.name).replace(/\s*\d+\s*分钟\s*$/, '') : '') + '" placeholder="比如：普拉提"></label>' +
+      '<div class="field-row" id="xKmRow"><label class="field"><span>距离</span><div class="unit-in"><input id="xKm" type="number" inputmode="decimal" step="0.1" min="0" value="' + (x && x.km ? x.km : '') + '" placeholder="5"><em>公里</em></div></label>' +
+      '<label class="field"><span>用时（可不填）</span><div class="unit-in"><input id="xKmMin" type="number" inputmode="numeric" min="0" value="' + (x && x.km && x.min ? x.min : '') + '" placeholder="30"><em>分钟</em></div></label></div>' +
+      '<label class="field" id="xMinRow"><span>时长</span><div class="unit-in"><input id="xMin" type="number" inputmode="numeric" min="0" value="' + (x && !x.km && x.min ? x.min : '') + '" placeholder="30"><em>分钟</em></div></label>' +
+      '<p class="hint" id="xPace"></p>' +
+      '<label class="field"><span>消耗</span><div class="unit-in"><input id="xKcal" type="number" inputmode="numeric" value="' + (x ? x.kcal : '') + '" placeholder="会按你的体重自动估算"><em>千卡</em></div><small id="xKcalHint">按你的体重自动估算，手表上有更准的数字可以直接改。只按一半加回今天的预算。</small></label>' +
       '<div class="actions">' + (x ? '<button type="button" class="btn ghost danger" id="xDel">删除</button>' : '<button type="button" class="btn ghost" data-close>取消</button>') + '<button type="submit" class="btn">保存</button></div></form>',
       (root) => {
-        $$('[data-p]', root).forEach((b) => b.addEventListener('click', () => { $('#xName', root).value = b.dataset.p; $('#xKcal', root).value = presets[b.dataset.p]; }));
+        const kmIn = $('#xKm', root), kmMinIn = $('#xKmMin', root), minIn = $('#xMin', root), kcalIn = $('#xKcal', root);
+        function estimate() {
+          if (type.u === 'km') { const km = Number(kmIn.value); return km > 0 ? Math.round(km * kg * type.k) : 0; }
+          const m = Number(minIn.value); return m > 0 && type.met ? Math.round(type.met * kg * m / 60) : 0;
+        }
+        function sync() {
+          $('#xKmRow', root).hidden = type.u !== 'km'; $('#xMinRow', root).hidden = type.u !== 'min'; $('#xNameRow', root).hidden = type.n !== '其他';
+          $$('.chip[data-ty]', root).forEach((c) => c.classList.toggle('on', c.dataset.ty === type.n));
+          const km = Number(kmIn.value), mm = Number(kmMinIn.value);
+          $('#xPace', root).textContent = type.u === 'km' && km > 0 && mm > 0 ? '配速约 ' + Math.floor(mm / km) + ' 分 ' + Math.round((mm / km % 1) * 60) + ' 秒 / 公里，时速约 ' + Calc.r1(km / mm * 60) + ' 公里' : '';
+          if (!manual) { const e = estimate(); kcalIn.value = e || ''; }
+          $('#xKcalHint', root).textContent = type.n === '其他' ? '这项没法自动估算，请填手表或 App 上的数字。只按一半加回今天的预算。' : '按你的体重自动估算，手表上有更准的数字可以直接改。只按一半加回今天的预算。';
+        }
+        $$('.chip[data-ty]', root).forEach((c) => c.addEventListener('click', () => { type = EX.find((t) => t.n === c.dataset.ty); if (!x) manual = false; sync(); (type.u === 'km' ? kmIn : type.n === '其他' ? $('#xName', root) : minIn).focus(); }));
+        [kmIn, kmMinIn, minIn].forEach((el) => el.addEventListener('input', () => { if (x && !x.manual && el !== kmMinIn) manual = false; sync(); }));
+        kcalIn.addEventListener('input', () => { manual = kcalIn.value !== '' && Number(kcalIn.value) !== estimate(); });
+        sync();
         $('#exF', root).addEventListener('submit', (e) => {
-          e.preventDefault(); const name = $('#xName', root).value.trim(), kcal = Math.round(Number($('#xKcal', root).value));
-          if (!name || !(kcal > 0)) { toast('请填写运动和消耗'); return; }
-          if (x) { x.name = name; x.kcal = kcal; } else (S().exercise[curDay] || (S().exercise[curDay] = [])).push({ id: D.uid(), name, kcal });
+          e.preventDefault();
+          const kcal = Math.round(Number(kcalIn.value));
+          const rec = { type: type.n, name: type.n === '其他' ? ($('#xName', root).value.trim() || '运动') : type.n, kcal, manual };
+          if (type.u === 'km') { rec.km = Calc.r1(Number(kmIn.value)); rec.min = Math.round(Number(kmMinIn.value)) || 0; if (!(rec.km > 0)) { toast('请填写跑了多少公里'); return; } }
+          else { rec.min = Math.round(Number(minIn.value)) || 0; if (!(rec.min > 0)) { toast('请填写运动了多少分钟'); return; } }
+          if (!(kcal > 0)) { toast('请填写消耗了多少千卡'); return; }
+          if (x) { delete x.km; delete x.min; Object.assign(x, rec); } else (S().exercise[curDay] || (S().exercise[curDay] = [])).push(Object.assign({ id: D.uid() }, rec));
           Store.save(); closeSheet(); renderToday();
         });
         if (x) confirmBtn($('#xDel', root), '再点一次删除', () => { S().exercise[curDay] = list.filter((y) => y.id !== id); Store.save(); closeSheet(); renderToday(); });
